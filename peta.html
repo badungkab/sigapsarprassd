@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Peta Geospasial - SIGAP SARPRAS-SD BADUNG</title>
+<link rel="stylesheet" href="sarpras.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar"><div class="brand2">SIGAP SARPRAS SD</div><nav id="sidebar-menu"></nav></aside>
+  <main class="main">
+    <div class="topbar"><h1>🗺️ Peta Geospasial</h1><span id="header-username" style="font-size:13px;color:#64748b;"></span></div>
+    <div class="cards" id="pCards"></div>
+    <div class="toolbar" id="pToolbar"></div>
+    <div class="map-wrap">
+      <div id="map"></div>
+      <div class="legend">
+        <strong>Status Sekolah</strong><br>
+        <span class="dot" style="background:#16a34a;"></span>Kondisi baik<br>
+        <span class="dot" style="background:#d97706;"></span>Ada sarpras rusak<br>
+        <span class="dot" style="background:#dc2626;"></span>Laporan kerusakan aktif
+      </div>
+    </div>
+    <div class="table-wrap"><h3 style="margin-bottom:12px;">Rekap per Kecamatan</h3>
+      <table class="data"><thead><tr><th>Kecamatan</th><th>Jml Sekolah</th><th>Item Sarpras</th><th>Laporan Aktif</th></tr></thead><tbody id="pKec"></tbody></table></div>
+    <div class="table-wrap"><h3 style="margin-bottom:12px;">Daftar Sekolah</h3>
+      <table class="data"><thead><tr><th>ID</th><th>Nama</th><th>Kecamatan</th><th>Alamat</th><th>Status</th><th>Laporan Aktif</th></tr></thead><tbody id="pSek"></tbody></table></div>
+  </main>
+</div>
+<script src="sarpras.js"></script>
+<script>
+let map=null;
+if(requireAuth('peta')){renderMenu('peta');withSync(load);}
+function statusSekolah(s){
+  const aktif=DATA.laporan.filter(l=>l.sekolah_id===s.id&&l.status!=='Selesai').length;
+  const rusak=DATA.sarpras.filter(x=>x.sekolah_id===s.id&&x.kondisi&&x.kondisi!=='baik').length+((s.kondisi_sarpras&&s.kondisi_sarpras!=='baik')?1:0);
+  if(aktif>0)return{c:'#dc2626',t:'Laporan aktif: '+aktif,b:'badge-red'};
+  if(rusak>0)return{c:'#d97706',t:'Sarpras rusak: '+rusak,b:'badge-amber'};
+  return{c:'#16a34a',t:'Kondisi baik',b:'badge-green'};
+}
+function load(){
+  document.getElementById('pCards').innerHTML=`<div class="card blue"><div class="num">${DATA.sekolah.length}</div><div class="label">Sekolah</div></div><div class="card green"><div class="num">${DATA.sarpras.length}</div><div class="label">Item Sarpras</div></div><div class="card red"><div class="num">${DATA.laporan.filter(l=>l.status!=='Selesai').length}</div><div class="label">Laporan Aktif</div></div>`;
+  buildToolbar('pToolbar',{onExport:()=>exportExcel(DATA.sekolah,'peta-sekolah','Sekolah'),onPrint:()=>printTable('Peta Sebaran Sekolah',['id','nama_sekolah','kecamatan','alamat','lat','lng'],DATA.sekolah)});
+  const m={};DATA.sekolah.forEach(s=>{if(!m[s.kecamatan])m[s.kecamatan]={sek:0,sp:0,lap:0};m[s.kecamatan].sek++;m[s.kecamatan].sp+=DATA.sarpras.filter(x=>x.sekolah_id===s.id).length;m[s.kecamatan].lap+=DATA.laporan.filter(l=>l.sekolah_id===s.id&&l.status!=='Selesai').length;});
+  document.getElementById('pKec').innerHTML=Object.entries(m).map(([k,v])=>`<tr><td>${k}</td><td>${v.sek}</td><td>${v.sp}</td><td>${v.lap}</td></tr>`).join('')||'<tr><td colspan="4" style="text-align:center;">Tidak ada data.</td></tr>';
+  document.getElementById('pSek').innerHTML=DATA.sekolah.map(s=>{const st=statusSekolah(s);return`<tr><td>${s.id}</td><td>${s.nama_sekolah}</td><td>${s.kecamatan}</td><td>${s.alamat||'-'}</td><td><span class="badge ${st.b}">${st.t}</span></td><td>${DATA.laporan.filter(l=>l.sekolah_id===s.id&&l.status!=='Selesai').length}</td></tr>`;}).join('');
+  initMap();
+}
+function initMap(){
+  const el=document.getElementById('map');
+  if(!window.L){el.innerHTML='<div style="padding:40px;text-align:center;color:#94a3b8;">⚠️ Library peta gagal dimuat. Periksa koneksi internet, lalu refresh (Ctrl+F5).</div>';return;}
+  if(map)map.remove();
+  map=L.map('map').setView([-8.70,115.17],11);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);
+  const pts=[];
+  DATA.sekolah.forEach(s=>{
+    const la=parseFloat(s.lat),lg=parseFloat(s.lng);
+    if(!la||!lg)return;
+    const st=statusSekolah(s);
+    const nsp=DATA.sarpras.filter(x=>x.sekolah_id===s.id).length;
+    L.marker([la,lg],{icon:L.divIcon({className:'',html:`<div style="width:20px;height:20px;border-radius:50%;background:${st.c};border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.45);"></div>`,iconSize:[20,20],iconAnchor:[10,10]})})
+     .addTo(map)
+     .bindPopup(`<div style="font-size:12px;"><strong>${s.nama_sekolah}</strong><br>${s.kecamatan} — ${s.alamat||''}<br>Status: <b>${st.t}</b><br>Item sarpras: <b>${nsp}</b></div>`);
+    pts.push([la,lg]);
+  });
+  if(pts.length)map.fitBounds(pts,{padding:[40,40]});
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sarana Prasarana - SIGAP SARPRAS-SD BADUNG</title>
+<link rel="stylesheet" href="sarpras.css">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar"><div class="brand2">SIGAP SARPRAS SD</div><nav id="sidebar-menu"></nav></aside>
+  <main class="main">
+    <div class="topbar"><h1>🗄️ Sarana Prasarana</h1><span id="header-username" style="font-size:13px;color:#64748b;"></span></div>
+    <div class="toolbar" id="xToolbar"></div>
+    <div class="table-wrap"><table class="data"><thead><tr><th>ID</th><th>Sekolah</th><th>Nama Barang</th><th>Kategori</th><th>Jumlah</th><th>Kondisi</th><th>Aksi</th></tr></thead><tbody id="xTable"></tbody></table></div>
+  </main>
+</div>
+<div class="modal-backdrop hidden" id="mSp"><div class="modal"><h3 id="mSpT">Tambah Sarpras</h3>
+  <div class="form-box"><div class="f2"><div><label>Sekolah *</label><select id="f_spsek"></select><label>Nama Barang *</label><input id="f_spnama"><label>Kategori *</label><select id="f_spkat"><option>Ruang Kelas</option><option>Meja & Kursi</option><option>Perpustakaan</option><option>Lab Komputer</option><option>Toilet</option><option>Lapangan</option><option>Lainnya</option></select></div><div><label>Jumlah *</label><input type="number" id="f_spjml"><label>Kondisi *</label><select id="f_spkond"><option>baik</option><option>rusak-ringan</option><option>rusak-berat</option></select></div></div>
+  <div style="margin-top:14px;text-align:right;"><button class="btn btn-secondary" onclick="hideM('mSp')">Batal</button><button class="btn btn-primary" onclick="saveSp()">SIMPAN</button></div></div></div></div>
+<script src="sarpras.js"></script>
+<script>
+let eId=null;
+if(requireAuth('sarpras')){renderMenu('sarpras');withSync(load);}
+function hideM(id){document.getElementById(id).classList.add('hidden');}
+function load(){buildToolbar('xToolbar',{createLabel:'➕ Tambah Sarpras',onCreate:()=>editSp(null),onExport:()=>exportExcel(DATA.sarpras,'sarpras','Sarpras'),onPrint:()=>printTable('Inventaris Sarpras',['id','nama_sekolah','nama_barang','kategori','jumlah','kondisi'],DATA.sarpras)});
+ document.getElementById('xTable').innerHTML=DATA.sarpras.map(s=>`<tr><td>${s.id}</td><td>${s.nama_sekolah}</td><td><strong>${s.nama_barang}</strong></td><td>${s.kategori}</td><td>${s.jumlah}</td><td><span class="badge ${s.kondisi==='baik'?'badge-green':s.kondisi==='rusak-berat'?'badge-red':'badge-amber'}">${s.kondisi}</span></td><td>${can('edit')?`<button class="btn btn-warning btn-sm" onclick="editSp('${s.id}')">Edit</button>`:''} ${can('delete')?`<button class="btn btn-danger btn-sm" onclick="delSp('${s.id}')">Hapus</button>`:''}</td></tr>`).join('');}
+function editSp(id){eId=id;const s=id?DATA.sarpras.find(x=>x.id===id):null;document.getElementById('mSpT').textContent=s?'Edit Sarpras':'Tambah Sarpras';document.getElementById('f_spsek').innerHTML=DATA.sekolah.map(k=>`<option value="${k.id}">${k.nama_sekolah}</option>`).join('');['f_spnama','f_spjml'].forEach(i=>document.getElementById(i).value='');if(s){document.getElementById('f_spsek').value=s.sekolah_id;document.getElementById('f_spnama').value=s.nama_barang;document.getElementById('f_spkat').value=s.kategori;document.getElementById('f_spjml').value=s.jumlah;document.getElementById('f_spkond').value=s.kondisi;}document.getElementById('mSp').classList.remove('hidden');}
+async function saveSp(){const sek=DATA.sekolah.find(s=>s.id===document.getElementById('f_spsek').value);const nama=document.getElementById('f_spnama').value.trim();const jml=+document.getElementById('f_spjml').value||0;if(!nama||!jml)return alert('Nama & jumlah wajib.');
+ const rec={sekolah_id:sek.id,nama_sekolah:sek.nama_sekolah,nama_barang:nama,kategori:document.getElementById('f_spkat').value,jumlah:jml,kondisi:document.getElementById('f_spkond').value,created_at:today()};
+ if(eId){Object.assign(DATA.sarpras.find(x=>x.id===eId),rec);}else{DATA.sarpras.push({id:nextSeq(DATA.sarpras,'SP',3),...rec});}
+ const r=await pushMaster();alert(r.ok?'Tersimpan.':'Gagal.');if(r.ok){hideM('mSp');withSync(load);}}
+async function delSp(id){if(!confirm('Hapus?'))return;DATA.sarpras=DATA.sarpras.filter(s=>s.id!==id);const r=await pushMaster();if(r.ok)withSync(load);}
+</script>
+</body>
+</html>

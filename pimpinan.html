@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Pimpinan - SIGAP SARPRAS-SD BADUNG</title>
+<link rel="stylesheet" href="sarpras.css">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar"><div class="brand2">SIGAP SARPRAS SD</div><nav id="sidebar-menu"></nav></aside>
+  <main class="main">
+    <div class="topbar"><h1>🏛️ Dashboard Pimpinan</h1><span id="header-username" style="font-size:13px;color:#64748b;"></span></div>
+    <div class="info-box">👁️ Pimpinan: melihat rekap, export, dan <strong>cetak</strong> laporan.</div>
+    <div class="cards" id="qCards"></div>
+    <div class="toolbar" id="qToolbar"></div>
+    <div class="table-wrap"><h3 style="margin-bottom:12px;">Rekap per Kecamatan</h3><table class="data"><thead><tr><th>Kecamatan</th><th>Sekolah</th><th>Laporan Aktif</th><th>Selesai</th></tr></thead><tbody id="qKec"></tbody></table></div>
+    <div class="table-wrap"><h3 style="margin-bottom:12px;">Laporan Kerusakan (Rusak Berat dahulu)</h3><table class="data"><thead><tr><th>ID</th><th>Sekolah</th><th>Barang</th><th>Tingkat</th><th>Status</th></tr></thead><tbody id="qTable"></tbody></table></div>
+  </main>
+</div>
+<script src="sarpras.js"></script>
+<script>
+if(requireAuth('pimpinan')){renderMenu('pimpinan');withSync(load);}
+function load(){const L=DATA.laporan;
+ document.getElementById('qCards').innerHTML=`<div class="card blue"><div class="num">${DATA.sekolah.length}</div><div class="label">Sekolah</div></div><div class="card red"><div class="num">${L.filter(l=>l.status!=='Selesai').length}</div><div class="label">Laporan Aktif</div></div><div class="card green"><div class="num">${L.filter(l=>l.status==='Selesai').length}</div><div class="label">Selesai</div></div>`;
+ buildToolbar('qToolbar',{onExport:()=>exportExcel(L,'rekap-pimpinan','Rekap'),onPrint:()=>printTable('Rekap Pimpinan - Laporan Kerusakan',['id','nama_sekolah','nama_barang','tingkat','status'],L)});
+ const m={};DATA.sekolah.forEach(s=>{if(!m[s.kecamatan])m[s.kecamatan]={sek:0,akt:0,sel:0};m[s.kecamatan].sek++;m[s.kecamatan].akt+=L.filter(l=>l.sekolah_id===s.id&&l.status!=='Selesai').length;m[s.kecamatan].sel+=L.filter(l=>l.sekolah_id===s.id&&l.status==='Selesai').length;});
+ document.getElementById('qKec').innerHTML=Object.entries(m).map(([k,v])=>`<tr><td>${k}</td><td>${v.sek}</td><td>${v.akt}</td><td>${v.sel}</td></tr>`).join('');
+ document.getElementById('qTable').innerHTML=[...L].sort((a,b)=>(a.tingkat===b.tingkat?0:(a.tingkat==='Rusak Berat'?-1:1))).map(l=>`<tr><td>${l.id}</td><td>${l.nama_sekolah}</td><td>${l.nama_barang}</td><td><span class="badge ${l.tingkat==='Rusak Berat'?'badge-red':'badge-amber'}">${l.tingkat}</span></td><td><span class="badge ${l.status==='Selesai'?'badge-green':l.status==='Proses'?'badge-amber':'badge-red'}">${l.status}</span></td></tr>`).join('');}
+</script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Laporan Kerusakan - SIGAP SARPRAS-SD BADUNG</title>
+<link rel="stylesheet" href="sarpras.css">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar"><div class="brand2">SIGAP SARPRAS SD</div><nav id="sidebar-menu"></nav></aside>
+  <main class="main">
+    <div class="topbar"><h1>📣 Laporan Kerusakan Sarpras</h1><span id="header-username" style="font-size:13px;color:#64748b;"></span></div>
+    <div class="cards" id="lCards"></div>
+    <div class="toolbar" id="lToolbar"></div>
+    <div class="table-wrap"><table class="data"><thead><tr><th>ID</th><th>Sekolah</th><th>Barang</th><th>Kategori</th><th>Tingkat</th><th>Foto</th><th>Tanggal</th><th>Pelapor</th><th>Status</th></tr></thead><tbody id="lTable"></tbody></table></div>
+  </main>
+</div>
+<div class="modal-backdrop hidden" id="mLapor"><div class="modal"><h3>Lapor Kerusakan</h3>
+  <div class="info-box">📎 Lampirkan <strong>foto kerusakan</strong> sebagai bukti visual (otomatis terkompresi & tersimpan di Drive).</div>
+  <div class="form-box"><div class="f2"><div>
+    <label>Sekolah *</label><select id="f_sek"></select>
+    <label>Nama Barang *</label><input id="f_barang">
+    <label>Kategori *</label><select id="f_kategori"><option>Ruang Kelas</option><option>Meja & Kursi</option><option>Perpustakaan</option><option>Lab Komputer</option><option>Toilet</option><option>Lapangan</option><option>Lainnya</option></select>
+    <label>Tingkat *</label><select id="f_tingkat"><option>Rusak Ringan</option><option>Rusak Berat</option></select>
+  </div><div>
+    <label>Tanggal Kejadian</label><input type="date" id="f_tanggal">
+    <label>Pelapor</label><input id="f_pelapor">
+    <label>Foto Kerusakan (opsional)</label><input type="file" id="f_foto" accept="image/*" onchange="previewFoto(this)">
+    <img id="fotoPrev">
+  </div></div>
+  <label>Deskripsi *</label><textarea id="f_desk" rows="3"></textarea>
+  <div style="margin-top:14px;text-align:right;"><button class="btn btn-secondary" onclick="hideM('mLapor')">Batal</button><button class="btn btn-primary" onclick="kirim()">KIRIM LAPORAN</button></div>
+  </div></div></div>
+<script src="sarpras.js"></script>
+<script>
+if(requireAuth('laporan')){renderMenu('laporan');withSync(load);}
+function hideM(id){document.getElementById(id).classList.add('hidden');}
+function load(){const L=DATA.laporan;const c=s=>L.filter(x=>x.status===s).length;
+ document.getElementById('lCards').innerHTML=`<div class="card red"><div class="num">${c('Belum')}</div><div class="label">Belum Ditangani</div></div><div class="card amber"><div class="num">${c('Proses')}</div><div class="label">Dalam Proses</div></div><div class="card green"><div class="num">${c('Selesai')}</div><div class="label">Selesai</div></div>`;
+ buildToolbar('lToolbar',{createLabel:'📢 Lapor Kerusakan',onCreate:showLapor,onExport:()=>exportExcel(L,'laporan-kerusakan','Laporan'),onPrint:()=>printTable('Laporan Kerusakan Sarpras',['id','nama_sekolah','nama_barang','kategori','tingkat','tanggal','pelapor','status'],L)});
+ document.getElementById('lTable').innerHTML=L.length?L.map(l=>`<tr><td>${l.id}</td><td>${l.nama_sekolah}</td><td><strong>${l.nama_barang}</strong></td><td>${l.kategori}</td><td><span class="badge ${l.tingkat==='Rusak Berat'?'badge-red':'badge-amber'}">${l.tingkat}</span></td><td>${l.foto?`<a href="${l.foto}" target="_blank"><img class="thumb" src="${l.foto}"></a>`:'-'}</td><td>${l.tanggal}</td><td>${l.pelapor}</td><td><span class="badge ${l.status==='Selesai'?'badge-green':l.status==='Proses'?'badge-amber':'badge-red'}">${l.status}</span></td></tr>`).join(''):'<tr><td colspan="9" style="text-align:center;">Belum ada laporan.</td></tr>';}
+function showLapor(){document.getElementById('f_sek').innerHTML=DATA.sekolah.map(s=>`<option value="${s.id}">${s.nama_sekolah}</option>`).join('');document.getElementById('f_tanggal').value=today();document.getElementById('f_pelapor').value=Auth.current().nama;document.getElementById('f_desk').value='';document.getElementById('f_foto').value='';document.getElementById('fotoPrev').style.display='none';document.getElementById('mLapor').classList.remove('hidden');}
+function previewFoto(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{const p=document.getElementById('fotoPrev');p.src=e.target.result;p.style.display='block';};r.readAsDataURL(f);}
+async function kirim(){const sek=DATA.sekolah.find(s=>s.id===document.getElementById('f_sek').value);const barang=document.getElementById('f_barang').value.trim();const desk=document.getElementById('f_desk').value.trim();if(!barang||!desk)return alert('Nama barang & deskripsi wajib.');
+ let b64='',name='';const f=document.getElementById('f_foto').files[0];
+ if(f){b64=await fileToBase64(f);name=f.name;}
+ const r=await Sheets.post({action:'addLaporan',foto_base64:b64,foto_name:name,laporan:{sekolah_id:sek.id,nama_sekolah:sek.nama_sekolah,nama_barang:barang,kategori:document.getElementById('f_kategori').value,tingkat:document.getElementById('f_tingkat').value,deskripsi:desk,tanggal:document.getElementById('f_tanggal').value,pelapor:document.getElementById('f_pelapor').value||Auth.current().nama}});
+ alert(r.msg);if(r.ok){hideM('mLapor');withSync(load);}}
+</script>
+</body>
+</html>

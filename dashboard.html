@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard - SIGAP SARPRAS-SD BADUNG</title>
+<link rel="stylesheet" href="sarpras.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar"><div class="brand2">SIGAP SARPRAS SD</div><nav id="sidebar-menu"></nav></aside>
+  <main class="main">
+    <div class="topbar"><h1>📊 Dashboard</h1><span id="header-username" style="font-size:13px;color:#64748b;"></span></div>
+    <div class="cards" id="dCards"></div>
+    <div class="toolbar" id="dToolbar"></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px;">
+      <div class="table-wrap"><h3 style="margin-bottom:12px;">🗺️ Peta Persebaran Sekolah</h3><div id="dmap"></div></div>
+      <div class="table-wrap"><h3 style="margin-bottom:12px;">⚠️ Prioritas Perbaikan</h3><table class="data"><thead><tr><th>Sekolah</th><th>Aktif</th><th>Tingkat</th></tr></thead><tbody id="dPrio"></tbody></table></div>
+    </div>
+    <div class="table-wrap"><h3 style="margin-bottom:12px;">Laporan Kerusakan Terbaru</h3><table class="data"><thead><tr><th>ID</th><th>Sekolah</th><th>Barang</th><th>Tingkat</th><th>Foto</th><th>Tanggal</th><th>Status</th></tr></thead><tbody id="dTable"></tbody></table></div>
+  </main>
+</div>
+<script src="sarpras.js"></script>
+<script>
+if(requireAuth('dashboard')){renderMenu('dashboard');withSync(load);}
+function load(){const L=DATA.laporan;
+ document.getElementById('dCards').innerHTML=`<div class="card blue"><div class="num">${DATA.sekolah.length}</div><div class="label">Total Sekolah</div></div><div class="card green"><div class="num">${DATA.sarpras.length}</div><div class="label">Item Sarpras</div></div><div class="card red"><div class="num">${L.filter(l=>l.status!=='Selesai').length}</div><div class="label">Laporan Aktif</div></div><div class="card amber"><div class="num">${L.filter(l=>l.status==='Selesai').length}</div><div class="label">Selesai Diperbaiki</div></div>`;
+ buildToolbar('dToolbar',{onExport:()=>exportExcel(L,'laporan-sarpras','Laporan'),onPrint:()=>printTable('Laporan Kerusakan Sarpras',['id','nama_sekolah','nama_barang','tingkat','tanggal','status'],L)});
+ const m={};L.filter(l=>l.status!=='Selesai').forEach(l=>{if(!m[l.nama_sekolah])m[l.nama_sekolah]={n:0,b:0};m[l.nama_sekolah].n++;if(l.tingkat==='Rusak Berat')m[l.nama_sekolah].b++;});
+ document.getElementById('dPrio').innerHTML=Object.entries(m).sort((a,b)=>b[1].n-a[1].n).slice(0,6).map(([s,v])=>`<tr><td>${s}</td><td><strong>${v.n}</strong></td><td>${v.b?`<span class="badge badge-red">${v.b} berat</span>`:'<span class="badge badge-amber">ringan</span>'}</td></tr>`).join('')||'<tr><td colspan="3" style="text-align:center;">Tidak ada laporan aktif.</td></tr>';
+ document.getElementById('dTable').innerHTML=L.slice(0,6).map(l=>`<tr><td>${l.id}</td><td>${l.nama_sekolah}</td><td>${l.nama_barang}</td><td><span class="badge ${l.tingkat==='Rusak Berat'?'badge-red':'badge-amber'}">${l.tingkat}</span></td><td>${l.foto?`<a href="${l.foto}" target="_blank"><img class="thumb" src="${l.foto}"></a>`:'-'}</td><td>${l.tanggal}</td><td><span class="badge ${l.status==='Selesai'?'badge-green':l.status==='Proses'?'badge-amber':'badge-red'}">${l.status}</span></td></tr>`).join('')||'<tr><td colspan="7" style="text-align:center;">Belum ada laporan.</td></tr>';
+ initDashMap();}
+function initDashMap(){const el=document.getElementById('dmap');if(!window.L||!el)return;
+ const dm=L.map('dmap',{scrollWheelZoom:false}).setView([-8.70,115.17],10);
+ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(dm);
+ DATA.sekolah.forEach(s=>{const la=parseFloat(s.lat),lg=parseFloat(s.lng);if(la&&lg)L.circleMarker([la,lg],{radius:7,color:'#16283f',weight:2,fillColor:'#f5b301',fillOpacity:.9}).addTo(dm).bindPopup('<strong>'+s.nama_sekolah+'</strong><br>'+s.kecamatan);});}
+</script>
+</body>
+</html>

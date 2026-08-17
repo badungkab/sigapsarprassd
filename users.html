@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manajemen User - SIGAP SARPRAS-SD BADUNG</title>
+<link rel="stylesheet" href="sarpras.css">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar"><div class="brand2">SIGAP SARPRAS SD</div><nav id="sidebar-menu"></nav></aside>
+  <main class="main">
+    <div class="topbar"><h1>👥 Manajemen User</h1><span id="header-username" style="font-size:13px;color:#64748b;"></span></div>
+    <div class="info-box">🔐 Khusus Administrator. Password baru disimpan terenkripsi SHA-256; menu aplikasi menyesuaikan role user.</div>
+    <div class="toolbar" id="uToolbar"></div>
+    <div class="table-wrap"><table class="data"><thead><tr><th>Username</th><th>Nama Lengkap</th><th>Role</th><th>Status</th><th>Password</th><th>Aksi</th></tr></thead><tbody id="uTable"></tbody></table></div>
+  </main>
+</div>
+<div class="modal-backdrop hidden" id="mUser"><div class="modal"><h3 id="mUserT">Tambah User</h3>
+  <div class="form-box"><div class="f2"><div>
+    <label>Username *</label><input id="f_uuser">
+    <label>Nama Lengkap *</label><input id="f_unama">
+    <label>Role *</label><select id="f_urole"><option value="admin">admin</option><option value="kepsek">kepsek</option><option value="pimpinan">pimpinan</option></select>
+  </div><div>
+    <label>Status</label><select id="f_ustatus"><option value="aktif">aktif</option><option value="nonaktif">nonaktif</option></select>
+    <label id="lblPass">Password * (min 6)</label><input type="password" id="f_upass">
+  </div></div>
+  <div style="margin-top:14px;text-align:right;"><button class="btn btn-secondary" onclick="hideM('mUser')">Batal</button><button class="btn btn-primary" onclick="saveUser()">SIMPAN</button></div>
+  </div></div></div>
+<script src="sarpras.js"></script>
+<script>
+let LIST=[],editId=null;
+if(requireAuth('users')){renderMenu('users');loadUsers();}
+function hideM(id){document.getElementById(id).classList.add('hidden');}
+async function loadUsers(){LIST=[];if(Sheets.available()){try{const r=await Sheets.get({action:'getUsers'});if(r.ok)LIST=r.users||[];}catch(e){}}
+ buildToolbar('uToolbar',{createLabel:'➕ Tambah User',onCreate:showAdd,onExport:()=>exportExcel(LIST.map(u=>({username:u.username,nama_lengkap:u.nama_lengkap,role:u.role,status:u.status})),'daftar-user','Users'),onPrint:()=>printTable('Daftar User',['username','nama_lengkap','role','status'],LIST)});
+ render();}
+function render(){document.getElementById('uTable').innerHTML=LIST.length?LIST.map(u=>`<tr><td><strong>${u.username}</strong></td><td>${u.nama_lengkap}</td><td><span class="badge badge-blue">${u.role}</span></td><td><span class="badge ${u.status==='aktif'?'badge-green':'badge-red'}">${u.status}</span></td><td>🔒 terenkripsi</td><td><button class="btn btn-warning btn-sm" onclick="showEdit(${u.id})">Edit</button> <button class="btn btn-info btn-sm" onclick="resetPass(${u.id})">Reset</button> <button class="btn btn-danger btn-sm" onclick="delUser(${u.id})">Hapus</button></td></tr>`).join(''):'<tr><td colspan="6" style="text-align:center;">Belum ada user.</td></tr>';}
+function showAdd(){editId=null;document.getElementById('mUserT').textContent='Tambah User';['f_uuser','f_unama','f_upass'].forEach(i=>document.getElementById(i).value='');document.getElementById('f_urole').value='kepsek';document.getElementById('f_ustatus').value='aktif';document.getElementById('lblPass').textContent='Password * (min 6)';document.getElementById('mUser').classList.remove('hidden');}
+function showEdit(id){const u=LIST.find(x=>Number(x.id)===Number(id));if(!u)return;editId=id;document.getElementById('mUserT').textContent='Edit User';document.getElementById('f_uuser').value=u.username;document.getElementById('f_unama').value=u.nama_lengkap;document.getElementById('f_urole').value=u.role;document.getElementById('f_ustatus').value=u.status||'aktif';document.getElementById('f_upass').value='';document.getElementById('lblPass').textContent='Password (kosongkan jika tidak diubah)';document.getElementById('mUser').classList.remove('hidden');}
+async function saveUser(){const username=document.getElementById('f_uuser').value.trim(),nama=document.getElementById('f_unama').value.trim(),role=document.getElementById('f_urole').value,status=document.getElementById('f_ustatus').value,pass=document.getElementById('f_upass').value;
+ if(!username||!nama)return alert('Username & nama wajib.');
+ let r;
+ if(editId){if(pass&&pass.length<6)return alert('Password min 6.');r=await Sheets.post({action:'updateUser',id:editId,user:{username,nama_lengkap:nama,role,status}});if(r.ok&&pass)r=await Sheets.post({action:'resetPassword',id:editId,password:pass});}
+ else{if(!pass||pass.length<6)return alert('Password min 6.');r=await Sheets.post({action:'createUser',user:{username,nama_lengkap:nama,role,status,password:pass}});}
+ alert(r.msg);if(r.ok){hideM('mUser');loadUsers();}}
+async function resetPass(id){const p=prompt('Password baru (min 6):');if(p===null)return;if(p.length<6)return alert('Min 6.');alert((await Sheets.post({action:'resetPassword',id,password:p})).msg);}
+async function delUser(id){const me=Auth.current();if(me&&Number(me.id)===Number(id))return alert('Tidak bisa hapus akun sendiri.');if(!confirm('Hapus user?'))return;alert((await Sheets.post({action:'deleteUser',id})).msg);loadUsers();}
+</script>
+</body>
+</html>

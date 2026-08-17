@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monitoring Perbaikan - SIGAP SARPRAS-SD BADUNG</title>
+<link rel="stylesheet" href="sarpras.css">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar"><div class="brand2">SIGAP SARPRAS SD</div><nav id="sidebar-menu"></nav></aside>
+  <main class="main">
+    <div class="topbar"><h1>🛠️ Monitoring Perbaikan Sarpras</h1><span id="header-username" style="font-size:13px;color:#64748b;"></span></div>
+    <div class="cards" id="mCards"></div>
+    <div class="toolbar" id="mToolbar"></div>
+    <div class="table-wrap"><table class="data"><thead><tr><th>ID</th><th>Sekolah</th><th>Barang</th><th>Tingkat</th><th>Foto</th><th>Tgl Lapor</th><th>Petugas</th><th>Tgl Perbaikan</th><th>Biaya</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="mTable"></tbody></table></div>
+  </main>
+</div>
+<div class="modal-backdrop hidden" id="mUp"><div class="modal"><h3>Update Status Perbaikan</h3>
+  <div class="form-box"><div class="f2"><div>
+    <label>Status *</label><select id="u_status"><option>Belum</option><option>Proses</option><option>Selesai</option></select>
+    <label>Petugas</label><input id="u_petugas">
+  </div><div>
+    <label>Tanggal Perbaikan</label><input type="date" id="u_tanggal">
+    <label>Biaya (Rp)</label><input type="number" id="u_biaya" value="0">
+  </div></div>
+  <div style="margin-top:14px;text-align:right;"><button class="btn btn-secondary" onclick="hideM('mUp')">Batal</button><button class="btn btn-primary" onclick="simpan()">SIMPAN</button></div>
+  </div></div></div>
+<script src="sarpras.js"></script>
+<script>
+let upId=null;
+if(requireAuth('monitoring')){renderMenu('monitoring');withSync(load);}
+function hideM(id){document.getElementById(id).classList.add('hidden');}
+function load(){const L=DATA.laporan;const c=s=>L.filter(x=>x.status===s).length;const biaya=L.filter(l=>l.status==='Selesai').reduce((a,b)=>a+(+b.biaya||0),0);
+ document.getElementById('mCards').innerHTML=`<div class="card red"><div class="num">${c('Belum')}</div><div class="label">Menunggu</div></div><div class="card amber"><div class="num">${c('Proses')}</div><div class="label">Dalam Proses</div></div><div class="card green"><div class="num">${c('Selesai')}</div><div class="label">Selesai</div></div><div class="card blue"><div class="num">Rp ${biaya.toLocaleString('id-ID')}</div><div class="label">Total Biaya</div></div>`;
+ buildToolbar('mToolbar',{onExport:()=>exportExcel(L,'monitoring','Monitoring'),onPrint:()=>printTable('Monitoring Perbaikan',['id','nama_sekolah','nama_barang','tingkat','tanggal','petugas','tanggal_perbaikan','biaya','status'],L)});
+ document.getElementById('mTable').innerHTML=L.length?L.map(l=>`<tr><td>${l.id}</td><td>${l.nama_sekolah}</td><td>${l.nama_barang}</td><td><span class="badge ${l.tingkat==='Rusak Berat'?'badge-red':'badge-amber'}">${l.tingkat}</span></td><td>${l.foto?`<a href="${l.foto}" target="_blank"><img class="thumb" src="${l.foto}"></a>`:'-'}</td><td>${l.tanggal}</td><td>${l.petugas||'-'}</td><td>${l.tanggal_perbaikan||'-'}</td><td>Rp ${(+l.biaya||0).toLocaleString('id-ID')}</td><td><span class="badge ${l.status==='Selesai'?'badge-green':l.status==='Proses'?'badge-amber':'badge-red'}">${l.status}</span></td><td>${can('edit')?`<button class="btn btn-info btn-sm" onclick="showUp('${l.id}')">Update</button>`:'-'}</td></tr>`).join(''):'<tr><td colspan="11" style="text-align:center;">Belum ada data.</td></tr>';}
+function showUp(id){upId=id;const l=DATA.laporan.find(x=>x.id===id);document.getElementById('u_status').value=l.status;document.getElementById('u_petugas').value=l.petugas||'';document.getElementById('u_tanggal').value=l.tanggal_perbaikan||'';document.getElementById('u_biaya').value=l.biaya||0;document.getElementById('mUp').classList.remove('hidden');}
+async function simpan(){const r=await Sheets.post({action:'updateLaporan',id:upId,status:document.getElementById('u_status').value,petugas:document.getElementById('u_petugas').value,tanggal_perbaikan:document.getElementById('u_tanggal').value,biaya:+document.getElementById('u_biaya').value||0});alert(r.msg);if(r.ok){hideM('mUp');withSync(load);}}
+</script>
+</body>
+</html>
